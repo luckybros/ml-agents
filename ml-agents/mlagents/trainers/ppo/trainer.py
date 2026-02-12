@@ -74,18 +74,31 @@ class PPOTrainer(OnPolicyTrainer):
         super()._process_trajectory(trajectory)
         agent_id = trajectory.agent_id  # All the agents should have the same ID
 
+        #logger.info(f"Agent ID: {agent_id}")
+        # Converte l'oggetto Trajectory in AgentBuffer, un formato più flessibile
+        # (simile a un dizionario) per aggiungere nuovi dati.
         agent_buffer_trajectory = trajectory.to_agentbuffer()
+
         # Check if we used group rewards, warn if so.
         self._warn_if_group_reward(agent_buffer_trajectory)
 
         # Update the normalization
+        # Se siamo in fase di addestramento, usa le osservazioni di questa traiettoria
+        # per aggiornare le statistiche di normalizzazione (media e dev. standard)
+        # degli input delle reti. Questo aiuta a stabilizzare l'addestramento.
         if self.is_training:
             self.policy.actor.update_normalization(agent_buffer_trajectory)
             self.optimizer.critic.update_normalization(agent_buffer_trajectory)
 
-        # Get all value estimates
+        # --- FASE 1: STIMA DEL VALORE (CHIAMATA AL CRITICO) ---
+        # Questa è una chiamata fondamentale. Si chiede al "critico" di stimare il valore
+        # per ogni stato nella traiettoria e per lo stato *successivo* all'ultimo.
+        # Restituisce:
+        # - value_estimates: un dizionario {nome_segnale: [valori...]} per ogni passo.
+        # - value_next: un dizionario {nome_segnale: valore} per lo stato dopo la fine.
+        # - value_memories: lo stato della memoria del critico (se RNN).
         (
-            value_estimates,
+            value_estimates,    
             value_next,
             value_memories,
         ) = self.optimizer.get_trajectory_value_estimates(
@@ -93,9 +106,11 @@ class PPOTrainer(OnPolicyTrainer):
             trajectory.next_obs,
             trajectory.done_reached and not trajectory.interrupted,
         )
+        # Aggiunge le memorie della rete
         if value_memories is not None:
             agent_buffer_trajectory[BufferKey.CRITIC_MEMORY].set(value_memories)
 
+        # Aggiunge la lista di valori per segnale di ricompensa
         for name, v in value_estimates.items():
             agent_buffer_trajectory[RewardSignalUtil.value_estimates_key(name)].extend(
                 v
@@ -106,13 +121,21 @@ class PPOTrainer(OnPolicyTrainer):
             )
 
         # Evaluate all reward functions
+        # Recupera la lista delle ricompense ambientali dalla traiettoria
+        # aggiorna un contatore globale che tiene traccia di quante ricompense totali sono state raccolte 
+        # dall'agente fino a questo punto dell'addestramento. È un dato puramente per il monitoraggio (es. 
+        # per graficare "Ricompensa Cumulativa per Episodio").
         self.collected_rewards["environment"][agent_id] += np.sum(
             agent_buffer_trajectory[BufferKey.ENVIRONMENT_REWARDS]
         )
+
+        # Iteriamo su ogni segnale di ricompensa configurato (es extrinsic, curiosity ecc)
         for name, reward_signal in self.optimizer.reward_signals.items():
+            # Calcola il valore di ricompensa sulla traiettoria e lo moltiplica per il peso datogli 
             evaluate_result = (
                 reward_signal.evaluate(agent_buffer_trajectory) * reward_signal.strength
             )
+            # Lo aggiunge alla trajectory
             agent_buffer_trajectory[RewardSignalUtil.rewards_key(name)].extend(
                 evaluate_result
             )
@@ -122,16 +145,24 @@ class PPOTrainer(OnPolicyTrainer):
         # Compute GAE and returns
         tmp_advantages = []
         tmp_returns = []
+
         for name in self.optimizer.reward_signals:
+            # 1. Recupera il "Bootstrap Value": la stima del valore dello stato DOPO la traiettoria.
+            # Questo è l'innesco per il calcolo a ritroso.
             bootstrap_value = value_next[name]
 
+            # 2. Recupera le ricompense effettive per questo segnale (es. "extrinsic_rewards").
             local_rewards = agent_buffer_trajectory[
                 RewardSignalUtil.rewards_key(name)
             ].get_batch()
+
+            # 3. Recupera le stime del valore fatte dalla testa del Critico per questo segnale.
             local_value_estimates = agent_buffer_trajectory[
                 RewardSignalUtil.value_estimates_key(name)
             ].get_batch()
 
+            # Ottengo il vettore di vantaggi cumulativi, cioè somme cumulative tra la ricompensa e il valore dello
+            # stato dato dal critic
             local_advantage = get_gae(
                 rewards=local_rewards,
                 value_estimates=local_value_estimates,
@@ -139,6 +170,9 @@ class PPOTrainer(OnPolicyTrainer):
                 gamma=self.optimizer.reward_signals[name].gamma,
                 lambd=self.hyperparameters.lambd,
             )
+
+            # Return come somma tra vantaggi e valori del critic
+
             local_return = local_advantage + local_value_estimates
             # This is later use as target for the different value estimates
             agent_buffer_trajectory[RewardSignalUtil.returns_key(name)].set(
@@ -151,12 +185,16 @@ class PPOTrainer(OnPolicyTrainer):
             tmp_returns.append(local_return)
 
         # Get global advantages
+        # Calcola le medie per segnale di ricompensa e le aggiunge al buffer
         global_advantages = list(
             np.mean(np.array(tmp_advantages, dtype=np.float32), axis=0)
         )
         global_returns = list(np.mean(np.array(tmp_returns, dtype=np.float32), axis=0))
         agent_buffer_trajectory[BufferKey.ADVANTAGES].set(global_advantages)
         agent_buffer_trajectory[BufferKey.DISCOUNTED_RETURNS].set(global_returns)
+        #agent_buffer_trajectory["aaaaaaaaaaa"].set(global_returns)
+
+        # logger.info(f"agent_id: {agent_id}")
 
         self._append_to_update_buffer(agent_buffer_trajectory)
 

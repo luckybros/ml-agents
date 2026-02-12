@@ -682,11 +682,11 @@ PlayerSettings:
     m_VersionName: 
   apiCompatibilityLevel: 3
   activeInputHandler: 2
-  cloudProjectId: 
+  cloudProjectId: 745a295c-8381-4ba8-b221-2b2e98429dd9
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: 
-  organizationId: 
+  projectName: Project
+  organizationId: luckybros
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 1
   playerDataPath: 

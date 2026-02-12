@@ -85,22 +85,43 @@ class OnPolicyTrainer(RLTrainer):
             int(self.hyperparameters.batch_size / self.policy.sequence_length), 1
         )
 
+        # Normalizza gli advantages e aggiorna
         advantages = np.array(
             self.update_buffer[BufferKey.ADVANTAGES].get_batch(), dtype=np.float32
         )
         self.update_buffer[BufferKey.ADVANTAGES].set(
             (advantages - advantages.mean()) / (advantages.std() + 1e-10)
         )
+
         num_epoch = self.hyperparameters.num_epoch
         batch_update_stats = defaultdict(list)
+
+
+        # Itera per 'num_epoch' volte sugli stessi dati.
+        # Questo permette all'agente di "studiare" a fondo l'esperienza raccolta.
         for _ in range(num_epoch):
+            # Mescola l'intero buffer per rompere le correlazioni temporali.
             self.update_buffer.shuffle(sequence_length=self.policy.sequence_length)
+
             buffer = self.update_buffer
             max_num_batch = buffer_length // batch_size
+
+            # Aggiornamento minibatch
             for i in range(0, max_num_batch * batch_size, batch_size):
                 minibatch = buffer.make_mini_batch(i, i + batch_size)
+
+                # **LA CHIAMATA CRUCIALE**: Esegue un passo di ottimizzazione.
+                # Passa il mini-batch all'ottimizzatore, che:
+                # 1. Calcola le loss (Attore, Critico, Entropia).
+                # 2. Calcola i gradienti.
+                # 3. Aggiorna i pesi delle reti.
                 update_stats = self.optimizer.update(minibatch, n_sequences)
+
+                # Se ci sono segnali di ricompensa intrinseca (es. curiosità),
+                # aggiorna anche i loro modelli.
                 update_stats.update(self.optimizer.update_reward_signals(minibatch))
+
+                # Salva le statistiche di loss di questo mini-batch.
                 for stat_name, value in update_stats.items():
                     batch_update_stats[stat_name].append(value)
 

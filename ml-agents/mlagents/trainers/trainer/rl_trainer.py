@@ -297,6 +297,9 @@ class RLTrainer(Trainer):
                     # Yield thread to avoid busy-waiting
                     time.sleep(0.0001)
         if self.should_still_train:
+            # Facciamo l'update solo quando la size dell'update buffer è pari a quella specificata
+            # negli iperparametri, e la size viene incrementata ogni volta che si chiama
+            # _process_trajectory
             if self._is_ready_update():
                 with hierarchical_timer("_update_policy"):
                     if self._update_policy():

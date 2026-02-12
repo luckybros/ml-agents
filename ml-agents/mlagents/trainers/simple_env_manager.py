@@ -69,12 +69,24 @@ class SimpleEnvManager(EnvManager):
 
     @timed
     def _take_step(self, last_step: EnvironmentStep) -> Dict[BehaviorName, ActionInfo]:
+        # Crea un contenitore vuoto per le azioni che verranno decise.
         all_action_info: Dict[str, ActionInfo] = {}
+
+        # Itera su ogni "tipo" di agente presente nella scena. 
+        # 'brain_name' è il nome del tipo di agente (es. "Player", "Enemy").
+        # 'step_tuple' contiene i dati di tutti gli agenti di quel tipo.
         for brain_name, step_tuple in last_step.current_all_step_result.items():
+
+            # Questa è la riga più importante.
+            # 1. self.policies[brain_name]: Seleziona il "cervello" (la policy) corretto per questo tipo di agente.
+            # 2. .get_action(...): Chiama la funzione di decisione di quel cervello.
+            # 3. step_tuple[0]: Passa a .get_action le OSSERVAZIONI dell'agente, cioè quello che vede.
             all_action_info[brain_name] = self.policies[brain_name].get_action(
                 step_tuple[0],
                 0,  # As there is only one worker, we assign the worker_id to 0.
             )
+
+        # Restituisce il dizionario che contiene l'azione decisa per ogni tipo di agente.
         return all_action_info
 
     def _generate_all_results(self) -> AllStepResult:

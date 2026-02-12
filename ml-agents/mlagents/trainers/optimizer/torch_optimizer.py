@@ -156,11 +156,22 @@ class TorchOptimizer(Optimizer):
             the final value estimate as a Dict of [name, float], and optionally (if using memories)
             an AgentBufferField of initial critic memories to be used during update.
         """
-        n_obs = len(self.policy.behavior_spec.observation_specs)
+
+
+        # SEZIONE 1: GESTIONE DELLA MEMORIA (PER RETI RICORRENTI - RNN/LSTM)
+        # ------------------------------------------------------------------
+        # Scopo: Recuperare lo stato della memoria del critico dall'ultimo step,
+        #        perché le decisioni di una rete ricorrente dipendono dal contesto passato.
+
+        # Controlla se abbiamo già uno stato di memoria per questo agente.
+        n_obs = len(self.policy.behavior_spec.observation_specs)    # numero agenti
 
         if agent_id in self.critic_memory_dict:
+            # Se sì, lo recupera. Questo è il "contesto" che si porta dietro.
             memory = self.critic_memory_dict[agent_id]
         else:
+            # Se è la prima volta che vediamo questo agente (o l'episodio è ricominciato),
+            # crea un nuovo tensore di memoria pieno di zeri.
             memory = (
                 torch.zeros((1, 1, self.critic.memory_size))
                 if self.policy.use_recurrent
@@ -179,13 +190,18 @@ class TorchOptimizer(Optimizer):
         all_next_memories: Optional[AgentBufferField] = None
 
         # To prevent memory leak and improve performance, evaluate with no_grad.
+        # Solo inferenza, ottenendo un azione
         with torch.no_grad():
+            # Se usiamo una rete ricorrente, il calcolo deve essere fatto sequenzialmente.
+            # Questa funzione speciale gestisce il passaggio della memoria passo dopo passo.
             if self.policy.use_recurrent:
                 (
                     value_estimates,
                     all_next_memories,
                     next_memory,
                 ) = self._evaluate_by_sequence(current_obs, memory)
+            # Se la rete non è ricorrente, possiamo processare l'intera traiettoria
+            # in un unico, velocissimo, calcolo parallelo.
             else:
                 value_estimates, next_memory = self.critic.critic_pass(
                     current_obs, memory, sequence_length=batch.num_experiences
@@ -194,10 +210,13 @@ class TorchOptimizer(Optimizer):
         # Store the memory for the next trajectory. This should NOT have a gradient.
         self.critic_memory_dict[agent_id] = next_memory
 
+        # Ora calcola il valore per lo stato *successivo* alla traiettoria, usando
+        # la memoria finale che abbiamo appena ottenuto. Questo è il "bootstrap value".
         next_value_estimate, _ = self.critic.critic_pass(
             next_obs, next_memory, sequence_length=1
         )
 
+        # From Tensor to NumPy arrays
         for name, estimate in value_estimates.items():
             value_estimates[name] = ModelUtils.to_numpy(estimate)
             next_value_estimate[name] = ModelUtils.to_numpy(next_value_estimate[name])

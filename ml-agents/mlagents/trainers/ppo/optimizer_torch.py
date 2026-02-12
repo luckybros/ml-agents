@@ -1,5 +1,6 @@
 from typing import Dict, cast
 import attr
+import logging
 
 from mlagents.torch_utils import torch, default_device
 
@@ -18,7 +19,9 @@ from mlagents.trainers.torch_entities.agent_action import AgentAction
 from mlagents.trainers.torch_entities.action_log_probs import ActionLogProbs
 from mlagents.trainers.torch_entities.utils import ModelUtils
 from mlagents.trainers.trajectory import ObsUtil
+from mlagents_envs.logging_util import get_logger
 
+logger = get_logger(__name__)
 
 @attr.s(auto_attribs=True)
 class PPOSettings(OnPolicyHyperparamSettings):
@@ -105,11 +108,17 @@ class TorchPPOOptimizer(TorchOptimizer):
         :return: Results of update.
         """
         # Get decayed parameters
+
+        # 1. Ottiene i valori "decaduti" degli iperparametri (learning rate, epsilon, beta).
+        #    Questi valori possono diminuire nel corso dell'addestramento.
         decay_lr = self.decay_learning_rate.get_value(self.policy.get_current_step())
         decay_eps = self.decay_epsilon.get_value(self.policy.get_current_step())
         decay_bet = self.decay_beta.get_value(self.policy.get_current_step())
-        returns = {}
-        old_values = {}
+
+        # 2. Recupera i dati dal mini-batch e li converte in tensori PyTorch.
+        #    Questi sono i "target" e i dati "vecchi" che abbiamo calcolato e salvato in precedenza.
+        returns = {}    # Ritorni ottenuti prima (somma dei vantaggi e dei valori)
+        old_values = {}    # Valori ottenuti prima  
         for name in self.reward_signals:
             old_values[name] = ModelUtils.list_to_tensor(
                 batch[RewardSignalUtil.value_estimates_key(name)]
@@ -118,14 +127,22 @@ class TorchPPOOptimizer(TorchOptimizer):
                 batch[RewardSignalUtil.returns_key(name)]
             )
 
-        n_obs = len(self.policy.behavior_spec.observation_specs)
-        current_obs = ObsUtil.from_buffer(batch, n_obs)
+        # In questa fase recuperiamo informazioni dal batch
+        n_obs = len(self.policy.behavior_spec.observation_specs)    # Numero di osservazioni, che sarebbe numero di agenti
+        current_obs = ObsUtil.from_buffer(batch, n_obs)     # Ottengo le osservazioni, sono per ogni agente pari al batch size
+        #logger.debug("---- UPDATE IN PPOOPTIMIZER ----")
+        #logger.debug(f"n_obs: {n_obs}")
+        #logger.debug(f"current_obs: {current_obs}")
         # Convert to tensors
-        current_obs = [ModelUtils.list_to_tensor(obs) for obs in current_obs]
+        current_obs = [ModelUtils.list_to_tensor(obs) for obs in current_obs]   # Le trasformo in tensori
+        #logger.debug(f"current_obs_tensor: {current_obs}")
 
-        act_masks = ModelUtils.list_to_tensor(batch[BufferKey.ACTION_MASK])
-        actions = AgentAction.from_buffer(batch)
 
+        act_masks = ModelUtils.list_to_tensor(batch[BufferKey.ACTION_MASK]) # Recupera le maschere delle azioni
+        actions = AgentAction.from_buffer(batch)    # Recupera le azioni, sono di numero pari al batch size
+        # logger.debug(f"actions: {actions}")
+
+        # Recupera le memorie LSTM (se presenti)
         memories = [
             ModelUtils.list_to_tensor(batch[BufferKey.MEMORY][i])
             for i in range(0, len(batch[BufferKey.MEMORY]), self.policy.sequence_length)
@@ -143,6 +160,7 @@ class TorchPPOOptimizer(TorchOptimizer):
         if len(value_memories) > 0:
             value_memories = torch.stack(value_memories).unsqueeze(0)
 
+        # Chiedo all'attore le probabilità con i pesi attuali (CON LE MEDESIME AZIONI DELLA OLD), sempre pari al batch size
         run_out = self.policy.actor.get_stats(
             current_obs,
             actions,
@@ -151,20 +169,37 @@ class TorchPPOOptimizer(TorchOptimizer):
             sequence_length=self.policy.sequence_length,
         )
 
-        log_probs = run_out["log_probs"]
+        log_probs = run_out["log_probs"]        
         entropy = run_out["entropy"]
 
+        #logger.info(f"log_probs: {log_probs}")
+        #logger.info(f"sum: {log_probs[0].exp().sum()}")
+        
+        #logger.info(f"log_probs_2: {log_probs.all_discrete_tensor.shape[1]}")
+        # Value del critic con i pesi attuali della rete 
         values, _ = self.critic.critic_pass(
             current_obs,
             memories=value_memories,
             sequence_length=self.policy.sequence_length,
         )
+
+        # Rimodellamento, serve per ottenere solo le probabilità dell'azione scelta 
         old_log_probs = ActionLogProbs.from_buffer(batch).flatten()
         log_probs = log_probs.flatten()
+        #logger.debug(f"old_log_probs: {old_log_probs}")
+        
+
+        # "filtro di sicurezza" fondamentale per garantire che l'agente impari solo dall'esperienza valida e non da dati "spazzatura" o irrilevanti.
         loss_masks = ModelUtils.list_to_tensor(batch[BufferKey.MASKS], dtype=torch.bool)
+
+        # È un solo valore
+        # Passo: valori attuali, vecchi valori, returns (valori + ricompense vecchi)
         value_loss = ModelUtils.trust_region_value_loss(
             values, old_values, returns, decay_eps, loss_masks
         )
+
+        # Anch'esso è un solo valore
+        # Passo log probs attuali, vecchie log probs, vantaggi
         policy_loss = ModelUtils.trust_region_policy_loss(
             ModelUtils.list_to_tensor(batch[BufferKey.ADVANTAGES]),
             log_probs,
@@ -172,17 +207,25 @@ class TorchPPOOptimizer(TorchOptimizer):
             loss_masks,
             decay_eps,
         )
+
         loss = (
             policy_loss
             + 0.5 * value_loss
+            # Minimizzare una loss con
+            #  -entropia è equivalente a massimizzare l'entropia. 'decay_bet' ne regola l'intensità.
             - decay_bet * ModelUtils.masked_mean(entropy, loss_masks)
         )
 
         # Set optimizer learning rate
         ModelUtils.update_learning_rate(self.optimizer, decay_lr)
+
+        # Azzera i gradienti calcolati nel mini-batch precedente.
         self.optimizer.zero_grad()
+
+        # Calcola il gradiente
         loss.backward()
 
+        # Aggiorna i pesi della rete
         self.optimizer.step()
         update_stats = {
             # NOTE: abs() is not technically correct, but matches the behavior in TensorFlow.

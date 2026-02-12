@@ -229,6 +229,7 @@ class TrainerController:
     @timed
     def advance(self, env_manager: EnvManager) -> int:
         # Get steps
+        # ACTION EXECUTION
         with hierarchical_timer("env_step"):
             new_step_infos = env_manager.get_steps()
             self._register_new_behaviors(env_manager, new_step_infos)
@@ -244,6 +245,7 @@ class TrainerController:
                     f"Environment/Lesson Number/{param_name}", lesson_number
                 )
 
+        # TRAINING EXECUTION
         for trainer in self.trainers.values():
             if not trainer.threaded:
                 with hierarchical_timer("trainer_advance"):

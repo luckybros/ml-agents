@@ -39,6 +39,7 @@ public class FoodCollectorAgent : Agent
     public override void Initialize()
     {
         m_AgentRb = GetComponent<Rigidbody>();
+        Debug.Log($"rigidbody: {m_AgentRb != null}");
         m_MyArea = area.GetComponent<FoodCollectorArea>();
         m_FoodCollecterSettings = FindFirstObjectByType<FoodCollectorSettings>();
         m_ResetParams = Academy.Instance.EnvironmentParameters;
@@ -47,6 +48,13 @@ public class FoodCollectorAgent : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
+        if (m_AgentRb == null)
+        {
+             m_AgentRb = GetComponent<Rigidbody>();
+                // Se è ancora null, usciamo per evitare il crash
+            if (m_AgentRb == null) return; 
+        }
+        /*
         if (useVectorObs)
         {
             var localVelocity = transform.InverseTransformDirection(m_AgentRb.linearVelocity);
@@ -55,7 +63,9 @@ public class FoodCollectorAgent : Agent
             sensor.AddObservation(m_Frozen);
             sensor.AddObservation(m_Shoot);
         }
-        else if (useVectorFrozenFlag)
+        */
+    
+        if (useVectorFrozenFlag)
         {
             sensor.AddObservation(m_Frozen);
         }
@@ -100,6 +110,8 @@ public class FoodCollectorAgent : Agent
             var forward = Mathf.Clamp(continuousActions[0], -1f, 1f);
             var right = Mathf.Clamp(continuousActions[1], -1f, 1f);
             var rotate = Mathf.Clamp(continuousActions[2], -1f, 1f);
+
+            
 
             dirToGo = transform.forward * forward;
             dirToGo += transform.right * right;
@@ -210,6 +222,12 @@ public class FoodCollectorAgent : Agent
         }
         var discreteActionsOut = actionsOut.DiscreteActions;
         discreteActionsOut[0] = Input.GetKey(KeyCode.Space) ? 1 : 0;
+
+        var localVelocity = transform.InverseTransformDirection(m_AgentRb.linearVelocity);
+        Debug.Log($"localVelocity.x: {localVelocity.x}");
+        Debug.Log($"localVelocity.z: {localVelocity.z}");
+        Debug.Log($"m_Frozen: {m_Frozen}");
+        Debug.Log($"m_Shoot: {m_Shoot}");
     }
 
     public override void OnEpisodeBegin()

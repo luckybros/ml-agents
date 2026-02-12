@@ -35,6 +35,8 @@ from mlagents_envs import logging_util
 from mlagents.plugins.stats_writer import register_stats_writer_plugins
 from mlagents.plugins.trainer_type import register_trainer_plugins
 
+# added hardcoded, let's see if it works
+from mlagents_plugin.oracle_side_channel import OracleSideChannel
 logger = logging_util.get_logger(__name__)
 
 TRAINING_STATUS_FILE_NAME = "training_status.json"
@@ -188,6 +190,10 @@ def create_environment_factory(
     ) -> UnityEnvironment:
         # Make sure that each environment gets a different seed
         env_seed = seed + worker_id
+
+        # added post, not official mlagents
+        side_channels.append(OracleSideChannel())
+
         return UnityEnvironment(
             file_name=env_path,
             worker_id=worker_id,

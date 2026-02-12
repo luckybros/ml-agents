@@ -174,6 +174,7 @@ class POCATrainer(OnPolicyTrainer):
         )
         agent_buffer_trajectory[BufferKey.ADVANTAGES].set(global_advantages)
 
+        # logger.info(f"Trajectory: {agent_buffer_trajectory}")
         self._append_to_update_buffer(agent_buffer_trajectory)
 
         # If this was a terminal trajectory, append stats and reset reward collection

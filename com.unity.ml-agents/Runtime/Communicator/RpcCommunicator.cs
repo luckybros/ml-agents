@@ -153,6 +153,7 @@ namespace Unity.MLAgents
                 return false;
             }
 
+            // Messaggio ricevuto da Python
             var pythonPackageVersion = initializationInput.RlInitializationInput.PackageVersion;
             var pythonCommunicationVersion = initializationInput.RlInitializationInput.CommunicationVersion;
             TrainingAnalytics.SetTrainerInformation(pythonPackageVersion, pythonCommunicationVersion);

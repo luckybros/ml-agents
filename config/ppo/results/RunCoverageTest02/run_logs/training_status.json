@@ -1,0 +1,29 @@
+{
+    "3DBall": {
+        "checkpoints": [
+            {
+                "steps": 20625,
+                "file_path": "results/RunCoverageTest02/3DBall/3DBall-20625.onnx",
+                "reward": 1.333615778192962,
+                "creation_time": 1770671365.4719732,
+                "auxillary_file_paths": [
+                    "results/RunCoverageTest02/3DBall/3DBall-20625.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 20625,
+            "file_path": "results/RunCoverageTest02/3DBall.onnx",
+            "reward": 1.333615778192962,
+            "creation_time": 1770671365.4719732,
+            "auxillary_file_paths": [
+                "results/RunCoverageTest02/3DBall/3DBall-20625.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "1.2.0.dev0",
+        "torch_version": "2.2.1"
+    }
+}

@@ -2,12 +2,14 @@ from typing import Any, Dict, List
 import numpy as np
 from mlagents.torch_utils import torch, default_device
 import copy
+import logging
 
 from mlagents.trainers.action_info import ActionInfo
 from mlagents.trainers.behavior_id_utils import get_global_agent_id
 from mlagents.trainers.policy import Policy
 from mlagents_envs.base_env import DecisionSteps, BehaviorSpec
 from mlagents_envs.timers import timed
+from mlagents_envs.logging_util import get_logger
 
 from mlagents.trainers.settings import NetworkSettings
 from mlagents.trainers.torch_entities.networks import GlobalSteps
@@ -16,6 +18,7 @@ from mlagents.trainers.torch_entities.utils import ModelUtils
 
 EPSILON = 1e-7  # Small value to avoid divide by zero
 
+logger = get_logger(__name__)
 
 class TorchPolicy(Policy):
     def __init__(
@@ -58,6 +61,7 @@ class TorchPolicy(Policy):
         # m_size needed for training is determined by network, not trainer settings
         self.m_size = self.actor.memory_size
 
+        # self.mock_buffer : List[np.ndarray] = []
         self.actor.to(default_device())
 
     @property
@@ -89,25 +93,43 @@ class TorchPolicy(Policy):
         :param decision_requests: DecisionStep object containing inputs.
         :return: Outputs from network as defined by self.inference_dict.
         """
-        obs = decision_requests.obs
-        masks = self._extract_masks(decision_requests)
+        # 1. Estrazione dei Dati di Input
+        obs = decision_requests.obs # Prende le osservazioni (vettori, immagini, ecc.)
+        masks = self._extract_masks(decision_requests)  # Prende la maschera delle azioni proibite (che abbiamo appena analizzato)
+
+        # 2. Conversione in Tensori PyTorch
+        # La rete neurale lavora con tensori, non con array numpy, quindi li convertiamo.
         tensor_obs = [torch.as_tensor(np_ob) for np_ob in obs]
 
+        # 3. Gestione della Memoria (per Reti Ricorrenti come LSTM)
+        # Se la rete ha una memoria (per ricordare il passato), qui la recupera.
+        # Se non è una rete ricorrente, questo sarà un tensore vuoto.
         memories = torch.as_tensor(self.retrieve_memories(global_agent_ids)).unsqueeze(
             0
         )
+
+        # 4. ESECUZIONE DELLA RETE NEURALE (IL PASSAGGIO CHIAVE)
         with torch.no_grad():
+            # torch.no_grad() dice a PyTorch: "Stiamo solo decidendo, non calcolare
+            # gradienti o prepararti per l'apprendimento". Questo rende l'esecuzione molto più veloce.
+
+            # Chiama l'attore (la parte della rete che decide l'azione)
             action, run_out, memories = self.actor.get_action_and_stats(
                 tensor_obs, masks=masks, memories=memories
-            )
-        run_out["action"] = action.to_action_tuple()
+            ) # AgentAction, Dict[str, Any]
+
+        # 5. Formattazione dell'Output
+        # Il resto della funzione prende i risultati grezzi dalla rete (che sono tensori)
+        # e li impacchetta in un formato più pulito (numpy array, tuple, ecc.)
+        # che il resto del framework può usare.
+        run_out["action"] = action.to_action_tuple()     # L'azione da eseguire
         if "log_probs" in run_out:
-            run_out["log_probs"] = run_out["log_probs"].to_log_probs_tuple()
+            run_out["log_probs"] = run_out["log_probs"].to_log_probs_tuple()    # La probabilità logaritmica dell'azione scelta
         if "entropy" in run_out:
-            run_out["entropy"] = ModelUtils.to_numpy(run_out["entropy"])
+            run_out["entropy"] = ModelUtils.to_numpy(run_out["entropy"])    # Una misura di quanto "incerta" era la rete sulla sua scelta
         if self.use_recurrent:
-            run_out["memory_out"] = ModelUtils.to_numpy(memories).squeeze(0)
-        return run_out
+            run_out["memory_out"] = ModelUtils.to_numpy(memories).squeeze(0)    # La nuova memoria da salvare per il prossimo passo
+        return run_out  # Restituisce un dizionario con tutte queste informazioni
 
     def get_action(
         self, decision_requests: DecisionSteps, worker_id: int = 0
@@ -122,14 +144,29 @@ class TorchPolicy(Policy):
         if len(decision_requests) == 0:
             return ActionInfo.empty()
 
+        obs = decision_requests.obs
+
         global_agent_ids = [
             get_global_agent_id(worker_id, int(agent_id))
             for agent_id in decision_requests.agent_id
         ]  # For 1-D array, the iterator order is correct.
 
+        
         run_out = self.evaluate(decision_requests, global_agent_ids)
         self.save_memories(global_agent_ids, run_out.get("memory_out"))
         self.check_nan_action(run_out.get("action"))
+        
+        """
+        for agent_id in global_agent_ids:
+            a = run_out.get("action")[agent_id]
+            logger.debug(f"Agent id: {agent_id}")
+            logger.debug(f"Action: {a}")
+        """
+        #logger.debug(decision_requests.agent_id)
+        #logger.debug(run_out.get("action").discrete)
+        #logger.debug(run_out.get("env_action").discrete)
+        
+
         return ActionInfo(
             action=run_out.get("action"),
             env_action=run_out.get("env_action"),

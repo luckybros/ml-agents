@@ -28,6 +28,8 @@ def get_gae(rewards, value_estimates, value_next=0.0, gamma=0.99, lambd=0.95):
     :return: list of advantage estimates for time-steps t to T.
     """
     value_estimates = np.append(value_estimates, value_next)
+    # Calcola l'errore di stima temporale (TD-error), o delta, per ogni passo della traiettoria, tutto in una sola operazione.
+    # Delta = Rt + gamma * V(st + 1) - V(st)
     delta_t = rewards + gamma * value_estimates[1:] - value_estimates[:-1]
     advantage = discount_rewards(r=delta_t, gamma=gamma * lambd)
     return advantage

@@ -2,6 +2,8 @@ from typing import List, Optional, Tuple, Dict
 from mlagents.torch_utils import torch, nn
 from mlagents.trainers.torch_entities.layers import LinearEncoder, Initialization
 import numpy as np
+import logging
+from mlagents_envs.logging_util import get_logger
 
 from mlagents.trainers.torch_entities.encoders import (
     SimpleVisualEncoder,
@@ -19,6 +21,7 @@ from mlagents.trainers.torch_entities.attention import (
 from mlagents.trainers.exception import UnityTrainerException
 from mlagents_envs.base_env import ObservationSpec, DimensionProperty
 
+logger = get_logger(__name__)
 
 class ModelUtils:
     # Minimum supported side for each encoder type. If refactoring an encoder, please
@@ -413,17 +416,36 @@ class ModelUtils:
         :param epsilon: Clipping value for value estimate.
         :param loss_mask: Mask for losses. Used with LSTM to ignore 0'ed out experiences.
         """
+
         value_losses = []
+
+        # Il critico può avere più uscite, una per ogni tipo di ricompensa.
+        # Questo ciclo calcola la loss per ciascuna di esse.
         for name, head in values.items():
+
+            # Prendiamo i values e i ritorni per questa specifica reward
             old_val_tensor = old_values[name]
             returns_tensor = returns[name]
+
+            # Otteniamo il clipped value come old + clip(new - old, -eps, eps)
             clipped_value_estimate = old_val_tensor + torch.clamp(
                 head - old_val_tensor, -1 * epsilon, epsilon
             )
+
+             # Loss A (Standard): Errore quadratico tra il target e la NUOVA previsione ('head').
             v_opt_a = (returns_tensor - head) ** 2
+
+            # Loss B (Clippata): Errore quadratico tra il target e la previsione "cauta"
             v_opt_b = (returns_tensor - clipped_value_estimate) ** 2
+
+            # 5. SCELTA DELLA LOSS "PEGGIORE"
+            # Per ogni passo dell'esperienza, prendiamo il valore massimo tra le due loss.
+            # Questa è la logica "pessimistica" della trust region.
+            # Se la rete fa un passo troppo grande (v_opt_a < v_opt_b), la penalizziamo di più
+            # scegliendo v_opt_b, forzandola a rimanere più cauta.
             value_loss = ModelUtils.masked_mean(torch.max(v_opt_a, v_opt_b), loss_masks)
             value_losses.append(value_loss)
+
         value_loss = torch.mean(torch.stack(value_losses))
         return value_loss
 
@@ -442,11 +464,31 @@ class ModelUtils:
         :param old_log_probs: Past policy probabilities
         :param loss_masks: Mask for losses. Used with LSTM to ignore 0'ed out experiences.
         """
+
+        # Reshaping
         advantage = advantages.unsqueeze(-1)
+
+        # 2. CALCOLO DEL RAPPORTO DI PROBABILITÀ (il "Ratio")
+        # Questa è la misura di QUANTO è cambiata la nostra policy.
+        # r_theta = exp(log_prob_nuova - log_prob_vecchia) = prob_nuova / prob_vecchia
         r_theta = torch.exp(log_probs - old_log_probs)
+        # logger.debug(f"r_theta in ModelUtil: {r_theta}")
+
+        # Primo termine del clip, r * A_t
         p_opt_a = r_theta * advantage
+
+        # Prima "clippa" (limita) il ratio in un piccolo intervallo [1-epsilon, 1+epsilon].
+        # Poi moltiplica questo ratio limitato per l'advantage.
+        # Questo crea un obiettivo "cauto" che non permette alla policy di cambiare troppo.
         p_opt_b = torch.clamp(r_theta, 1.0 - epsilon, 1.0 + epsilon) * advantage
+
+        # 4. SCELTA DELL'OBIETTIVO "PESSIMISTICO"
+        # Questa è la magia di PPO. Per ogni passo, scegliamo il valore MINIMO
+        # tra l'obiettivo standard e quello cauto.
+        # Questo serve a penalizzare gli aggiornamenti troppo grandi.
         policy_loss = -1 * ModelUtils.masked_mean(
             torch.min(p_opt_a, p_opt_b), loss_masks
         )
+
+        # logger.debug(f"policy_loss: {policy_loss}")
         return policy_loss

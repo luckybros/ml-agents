@@ -255,6 +255,7 @@ namespace Unity.MLAgents
             if (!CommunicatorFactory.CommunicatorRegistered)
             {
                 Debug.Log("Registered Communicator in Academy.");
+                // Quando chiama create chiama RpcCommunicator.Create
                 CommunicatorFactory.Register<ICommunicator>(RpcCommunicator.Create);
             }
 #endif

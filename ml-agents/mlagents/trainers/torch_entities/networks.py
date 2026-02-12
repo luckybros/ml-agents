@@ -1,5 +1,7 @@
 from typing import Callable, List, Dict, Tuple, Optional, Union, Any
 import abc
+import logging
+from mlagents_envs.logging_util import get_logger
 
 from mlagents.torch_utils import torch, nn
 
@@ -21,6 +23,7 @@ from mlagents.trainers.torch_entities.attention import (
 )
 from mlagents.trainers.exception import UnityTrainerException
 
+logger = get_logger(__name__)
 
 ActivationFunction = Callable[[torch.Tensor], torch.Tensor]
 EncoderFunction = Callable[
@@ -602,6 +605,7 @@ class SimpleActor(nn.Module, Actor):
             ),
             requires_grad=False,
         )
+
         self.network_body = NetworkBody(observation_specs, network_settings)
         if network_settings.memory is not None:
             self.encoding_size = network_settings.memory.memory_size // 2
@@ -634,10 +638,15 @@ class SimpleActor(nn.Module, Actor):
         sequence_length: int = 1,
     ) -> Tuple[AgentAction, Dict[str, Any], torch.Tensor]:
 
+        # Ottengo un encoding dello stato da mandare all'action Model
         encoding, memories = self.network_body(
             inputs, memories=memories, sequence_length=sequence_length
         )
         action, log_probs, entropies = self.action_model(encoding, masks)
+        #logger.debug("----- GET ACTION AND STATS DEBUG -----")
+        #logger.debug(f"action in get_action_and_stats: {action}")
+        #logger.debug(f"log_probs in get_action_and_stats: {log_probs}")
+
         run_out = {}
         # This is the clipped action which is not saved to the buffer
         # but is exclusively sent to the environment.
@@ -646,6 +655,7 @@ class SimpleActor(nn.Module, Actor):
         )
         run_out["log_probs"] = log_probs
         run_out["entropy"] = entropies
+        #run_out[]
 
         return action, run_out, memories
 
@@ -662,6 +672,8 @@ class SimpleActor(nn.Module, Actor):
         )
 
         log_probs, entropies = self.action_model.evaluate(encoding, masks, actions)
+        #logger.debug("----- GET STATS DEBUG -----")
+        #logger.debug(f"log_probs in get_stats: {log_probs}")
         run_out = {}
         run_out["log_probs"] = log_probs
         run_out["entropy"] = entropies

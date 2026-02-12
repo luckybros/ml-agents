@@ -196,7 +196,6 @@ class GaussianDistribution(nn.Module):
         else:
             return GaussianDistInstance(mu, torch.exp(log_sigma))
 
-
 class MultiCategoricalDistribution(nn.Module):
     def __init__(self, hidden_size: int, act_sizes: List[int]):
         super().__init__()
@@ -204,6 +203,7 @@ class MultiCategoricalDistribution(nn.Module):
         self.branches = self._create_policy_branches(hidden_size)
 
     def _create_policy_branches(self, hidden_size: int) -> nn.ModuleList:
+        # Creates a branch for every act size
         branches = []
         for size in self.act_sizes:
             branch_output_layer = linear_layer(
