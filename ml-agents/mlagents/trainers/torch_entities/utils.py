@@ -24,7 +24,7 @@ from mlagents_envs.base_env import ObservationSpec, DimensionProperty
 logger = get_logger(__name__)
 
 class ModelUtils:
-    # Minimum supported side for each encoder type. If refactoring an encoder, please
+    # Minimum suprted side for each encoder type. If refactoring an encoder, please
     # adjust these also.
     MIN_RESOLUTION_FOR_ENCODER = {
         EncoderType.FULLY_CONNECTED: 1,

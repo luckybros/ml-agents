@@ -643,9 +643,6 @@ class SimpleActor(nn.Module, Actor):
             inputs, memories=memories, sequence_length=sequence_length
         )
         action, log_probs, entropies = self.action_model(encoding, masks)
-        #logger.debug("----- GET ACTION AND STATS DEBUG -----")
-        #logger.debug(f"action in get_action_and_stats: {action}")
-        #logger.debug(f"log_probs in get_action_and_stats: {log_probs}")
 
         run_out = {}
         # This is the clipped action which is not saved to the buffer

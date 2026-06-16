@@ -6,6 +6,7 @@ from mlagents.trainers.environment_parameter_manager import EnvironmentParameter
 from mlagents.trainers.exception import TrainerConfigError
 from mlagents.trainers.trainer import Trainer
 from mlagents.trainers.ghost.trainer import GhostTrainer
+from mlagents_plugin.trainers.trainer.llm_ghost_trainer import LLMGhostTrainer
 from mlagents.trainers.ghost.controller import GhostController
 from mlagents.trainers.settings import TrainerSettings
 from mlagents.plugins import all_trainer_types
@@ -119,7 +120,7 @@ class TrainerFactory:
             )
 
         if trainer_settings.self_play is not None:
-            trainer = GhostTrainer(
+            trainer = LLMGhostTrainer(
                 trainer,
                 brain_name,
                 ghost_controller,

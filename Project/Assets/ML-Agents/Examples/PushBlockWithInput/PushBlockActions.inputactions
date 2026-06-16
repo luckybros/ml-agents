@@ -1,4 +1,5 @@
 {
+    "version": 1,
     "name": "PushBlockActions",
     "maps": [
         {
@@ -11,15 +12,26 @@
                     "id": "5f47cbc6-de46-4d33-93e2-2b1af4f5996d",
                     "expectedControlType": "Vector2",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": true
                 },
                 {
                     "name": "jump",
                     "type": "Button",
                     "id": "ca5eb833-5dfb-4b7c-880d-6118bd5d1378",
-                    "expectedControlType": "Button",
+                    "expectedControlType": "",
                     "processors": "",
-                    "interactions": ""
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Cacca",
+                    "type": "Button",
+                    "id": "5f567027-7722-4ffd-b94a-9fa22dd98a26",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -154,6 +166,50 @@
                     "action": "jump",
                     "isComposite": false,
                     "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "913156a4-19d6-41af-8a73-49a7da76a454",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Cacca",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "1D Axis",
+                    "id": "7aca5020-151c-42dd-80a1-bd394ea7b814",
+                    "path": "1DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Cacca",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "negative",
+                    "id": "a353956d-a68e-42fb-b703-2827d2946169",
+                    "path": "",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Cacca",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "positive",
+                    "id": "3bfd2861-ee91-4d0b-8d39-e38449528c29",
+                    "path": "",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Cacca",
+                    "isComposite": false,
+                    "isPartOfComposite": true
                 }
             ]
         }

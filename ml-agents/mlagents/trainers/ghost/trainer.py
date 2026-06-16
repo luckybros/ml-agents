@@ -25,7 +25,7 @@ from mlagents.trainers.training_status import GlobalTrainingStatus, StatusType
 logger = get_logger(__name__)
 
 
-class GhostTrainer(Trainer):
+class GhostTrainer(Trainer):    
     """
     The GhostTrainer trains agents in adversarial games (there are teams in opposition) using a self-play mechanism.
     In adversarial settings with self-play, at any time, there is only a single learning team. The other team(s) is
@@ -204,6 +204,7 @@ class GhostTrainer(Trainer):
             final_reward = (
                 trajectory.steps[-1].reward + trajectory.steps[-1].group_reward
             )
+            
             result = 0.5
             if final_reward > 0:
                 result = 1.0
@@ -220,10 +221,13 @@ class GhostTrainer(Trainer):
         """
         Steps the trainer, passing trajectories to wrapped trainer and calling trainer advance
         """
+        # per le traiettorie di ogni agente, ottengo l'id e controllo se sono quelle del learning team
         for trajectory_queue in self.trajectory_queues:
             parsed_behavior_id = self._name_to_parsed_behavior_id[
                 trajectory_queue.behavior_id
             ]
+            # se sono quelle del learning team, processo quella traiettoria (processo solo quelle del 
+            # learning team)
             if parsed_behavior_id.team_id == self._learning_team:
                 # With a future multiagent trainer, this will be indexed by 'role'
                 internal_trajectory_queue = self._internal_trajectory_queues[
@@ -251,7 +255,7 @@ class GhostTrainer(Trainer):
                     pass
 
         self._next_summary_step = self.trainer._next_summary_step
-        self.trainer.advance()
+        self.trainer.advance()  # advance del trainer base
         if self.get_step - self.last_team_change > self.steps_to_train_team:
             self.controller.change_training_team(self.get_step)
             self.last_team_change = self.get_step

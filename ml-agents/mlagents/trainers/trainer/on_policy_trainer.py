@@ -115,6 +115,7 @@ class OnPolicyTrainer(RLTrainer):
                 # 1. Calcola le loss (Attore, Critico, Entropia).
                 # 2. Calcola i gradienti.
                 # 3. Aggiorna i pesi delle reti.
+                logger.info("UPDATING AAAAAOAOAOAOAOOAO")
                 update_stats = self.optimizer.update(minibatch, n_sequences)
 
                 # Se ci sono segnali di ricompensa intrinseca (es. curiosità),

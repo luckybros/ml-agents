@@ -87,6 +87,7 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
             GlobalTrainingStatus.load_state(
                 os.path.join(run_logs_dir, "training_status.json")
             )
+            
         # In case of initialization, set full init_path for all behaviors
         elif checkpoint_settings.maybe_init_path is not None:
             setup_init_path(options.behaviors, checkpoint_settings.maybe_init_path)
@@ -191,8 +192,9 @@ def create_environment_factory(
         # Make sure that each environment gets a different seed
         env_seed = seed + worker_id
 
+        oracle_id = os.environ.get("ORACLE_ID", "1")
         # added post, not official mlagents
-        side_channels.append(OracleSideChannel())
+        side_channels.append(OracleSideChannel(oracle_id, log_folder))
 
         return UnityEnvironment(
             file_name=env_path,

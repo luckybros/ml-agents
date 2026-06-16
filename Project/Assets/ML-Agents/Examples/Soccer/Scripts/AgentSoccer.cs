@@ -145,7 +145,6 @@ public class AgentSoccer : Agent
     public override void OnActionReceived(ActionBuffers actionBuffers)
 
     {
-
         if (position == Position.Goalie)
         {
             // Existential bonus for Goalies.

@@ -95,6 +95,7 @@ class TorchPolicy(Policy):
         """
         # 1. Estrazione dei Dati di Input
         obs = decision_requests.obs # Prende le osservazioni (vettori, immagini, ecc.)
+        #ogger.info(f"obs: {obs}")
         masks = self._extract_masks(decision_requests)  # Prende la maschera delle azioni proibite (che abbiamo appena analizzato)
 
         # 2. Conversione in Tensori PyTorch
@@ -151,7 +152,7 @@ class TorchPolicy(Policy):
             for agent_id in decision_requests.agent_id
         ]  # For 1-D array, the iterator order is correct.
 
-        
+        #logger.info(f"agent: {global_agent_ids}")
         run_out = self.evaluate(decision_requests, global_agent_ids)
         self.save_memories(global_agent_ids, run_out.get("memory_out"))
         self.check_nan_action(run_out.get("action"))

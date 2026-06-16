@@ -108,6 +108,7 @@ public class PushBlockWithInputPlayerController : MonoBehaviour, IInputActionAss
     /// <returns>Corresponing action collection tuple.</returns>
     public (InputActionAsset, IInputActionCollection2) GetInputActionAsset()
     {
+        Debug.Log("ciaociaociao");
         LazyInitializeActions();
         return (m_PushBlockActions.asset, m_PushBlockActions);
     }

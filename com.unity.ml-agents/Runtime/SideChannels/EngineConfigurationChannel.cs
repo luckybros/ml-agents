@@ -37,10 +37,12 @@ namespace Unity.MLAgents.SideChannels
                 case ConfigurationType.ScreenResolution:
                     var width = msg.ReadInt32();
                     var height = msg.ReadInt32();
+                    Debug.Log($"[EngineConfig] ScreenResolution impostata a: {width}x{height}");
                     Screen.SetResolution(width, height, false);
                     break;
                 case ConfigurationType.QualityLevel:
                     var qualityLevel = msg.ReadInt32();
+                    Debug.Log($"[EngineConfig] QualityLevel impostato a: {qualityLevel}");
                     QualitySettings.SetQualityLevel(qualityLevel, true);
                     break;
                 case ConfigurationType.TimeScale:
@@ -54,14 +56,17 @@ namespace Unity.MLAgents.SideChannels
                     const float maxTimeScale = float.PositiveInfinity;
 #endif
                     timeScale = Mathf.Clamp(timeScale, 1, maxTimeScale);
+                    Debug.Log($"[TimeScale] Time scale impostato a {timeScale}");
                     Time.timeScale = timeScale;
                     break;
                 case ConfigurationType.TargetFrameRate:
                     var targetFrameRate = msg.ReadInt32();
+                    Debug.Log($"[EngineConfig] TargetFrameRate impostato a: {targetFrameRate}");
                     Application.targetFrameRate = targetFrameRate;
                     break;
                 case ConfigurationType.CaptureFrameRate:
                     var captureFrameRate = msg.ReadInt32();
+                    Debug.Log($"[EngineConfig] CaptureFrameRate impostato a: {captureFrameRate}");
                     Time.captureFramerate = captureFrameRate;
                     break;
                 default:

@@ -112,6 +112,7 @@ class PPOTrainer(OnPolicyTrainer):
 
         # Aggiunge la lista di valori per segnale di ricompensa
         for name, v in value_estimates.items():
+            
             agent_buffer_trajectory[RewardSignalUtil.value_estimates_key(name)].extend(
                 v
             )
