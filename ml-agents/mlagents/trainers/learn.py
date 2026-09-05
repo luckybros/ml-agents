@@ -1,4 +1,5 @@
 # # Unity ML-Agents Toolkit
+import uuid
 from mlagents import torch_utils
 import yaml
 
@@ -80,6 +81,11 @@ def run_training(run_seed: int, options: RunOptions, num_areas: int) -> None:
             checkpoint_settings.force,
             checkpoint_settings.maybe_init_path,
         )
+
+        oracle_id = str(checkpoint_settings.write_path).split('/')[1]
+        print(oracle_id)
+        os.environ['ORACLE_ID'] = oracle_id
+        os.environ['ORACLE_HASH'] = str(_to_uuid(oracle_id))
         # Make run logs directory
         os.makedirs(run_logs_dir, exist_ok=True)
         # Load any needed states in case of resume
@@ -193,6 +199,7 @@ def create_environment_factory(
         env_seed = seed + worker_id
 
         oracle_id = os.environ.get("ORACLE_ID", "1")
+        print(f"oralce id: {oracle_id}")
         # added post, not official mlagents
         side_channels.append(OracleSideChannel(oracle_id, log_folder))
 
@@ -272,6 +279,14 @@ def run_cli(options: RunOptions) -> None:
         run_seed = np.random.randint(0, 10000)
         logger.debug(f"run_seed set to {run_seed}")
     run_training(run_seed, options, num_areas)
+
+@staticmethod
+def _to_uuid(raw_id) -> uuid.UUID:
+    raw_str = str(raw_id)
+    try:
+        return uuid.UUID(raw_str)
+    except ValueError:
+        return uuid.uuid3(uuid.NAMESPACE_DNS, raw_str)
 
 
 def main():
